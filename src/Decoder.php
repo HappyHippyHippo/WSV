@@ -64,7 +64,10 @@ class Decoder
         $parser = new Parser();
         foreach ($input->lines($this->encode) as $id => $line) {
             $values = $parser->parse($line, $this->encode);
-            if ($this->header === true && $id === 0) {
+            if (count($values) === 0) {
+                continue;
+            }
+            if ($this->header === true) {
                 $this->header = $values;
                 continue;
             }
