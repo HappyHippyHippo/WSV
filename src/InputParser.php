@@ -4,10 +4,9 @@ namespace HappyHippyHippo\WSV;
 
 use HappyHippyHippo\TextIO\Encode;
 use HappyHippyHippo\WSV\Exception\EndOfLineException;
-use HappyHippyHippo\WSV\Exception\Exception;
 use IntlChar;
 
-class Parser
+class InputParser implements InputParserInterface
 {
     /** @var int[] */
     protected array $chars;
@@ -19,28 +18,25 @@ class Parser
     protected int $index;
 
     /**
-     * @param string $text
-     * @param Encode $encoding
-     * @return string[]
-     * @throws Exception
+     * @param string $data
+     * @return array<int, mixed>
+     * @throws EndOfLineException
      */
-    public function parse(string $text, Encode $encoding = Encode::UTF8): array
+    public function parse(string $data): array
     {
-        $this->chars = array_map([IntlChar::class, 'ord'], mb_str_split($text, 1, $encoding->value));
+        $this->chars = array_map([IntlChar::class, 'ord'], mb_str_split($data, 1, Encode::UTF8->value));
         $this->length = count($this->chars);
         $this->index = 0;
 
-        $result = [];
-
+        $record = [];
         while (!$this->isEOL()) {
             $this->removeWhitespaces();
             $this->removeComment();
             if (!$this->isEOL()) {
-                $result[] = $this->read();
+                $record[] = $this->read();
             }
         }
-
-        return $result;
+        return $record;
     }
 
     /**
@@ -65,13 +61,13 @@ class Parser
 
     /**
      * @return mixed
-     * @throws Exception
+     * @throws EndOfLineException
      */
     protected function read(): mixed
     {
         return match ($this->chars[$this->index]) {
-            IntlChar::ord('-') => $this->readNull(),
-            IntlChar::ord('"') => $this->readString(),
+            Char::null() => $this->readNull(),
+            Char::doubleQuote() => $this->readString(),
             default => $this->readValue(),
         };
     }
@@ -87,7 +83,7 @@ class Parser
 
     /**
      * @return string
-     * @throws Exception
+     * @throws EndOfLineException
      */
     protected function readString(): string
     {
@@ -110,7 +106,11 @@ class Parser
                     continue;
                 }
                 // multi-line string
-                if ($this->isSlash() && !$this->isEOL($this->index + 1) && $this->isDoubleQuote($this->index + 1)) {
+                if (
+                    $this->isSlash() &&
+                    !$this->isEOL($this->index + 1) &&
+                    $this->isDoubleQuote($this->index + 1)
+                ) {
                     $result[] = 0x0A;
                     $this->index++;
                     $this->index++;
@@ -147,7 +147,7 @@ class Parser
         if ($index === null) {
             $index = $this->index;
         }
-        return $index >= $this->length || $this->chars[$index] === IntlChar::ord("\n");
+        return $index >= $this->length || Char::isEOL($this->chars[$index]);
     }
 
     /**
@@ -159,14 +159,7 @@ class Parser
         if ($index === null) {
             $index = $this->index;
         }
-        return match ($this->chars[$index]) {
-            0x09,0x0A,0x0B,0x0C,0x0D,0x20,0x85,0xA0,
-            0x1680,0x2000,0x2001,0x2002,
-            0x2003,0x2004,0x2005,0x2006,
-            0x2007,0x2008,0x2009,0x200A,
-            0x2028,0x2029,0x202F,0x205F,0x3000 => true,
-            default => false,
-        };
+        return Char::isWhitespace($this->chars[$index]);
     }
 
     /**
@@ -178,7 +171,7 @@ class Parser
         if ($index === null) {
             $index = $this->index;
         }
-        return $this->chars[$index] === IntlChar::ord('#');
+        return Char::isComment($this->chars[$index]);
     }
 
     /**
@@ -190,7 +183,7 @@ class Parser
         if ($index === null) {
             $index = $this->index;
         }
-        return $this->chars[$index] === IntlChar::ord('/');
+        return Char::isSlash($this->chars[$index]);
     }
 
     /**
@@ -202,6 +195,6 @@ class Parser
         if ($index === null) {
             $index = $this->index;
         }
-        return $this->chars[$index] === IntlChar::ord('"');
+        return Char::isDoubleQuote($this->chars[$index]);
     }
 }

@@ -2,102 +2,56 @@
 
 namespace HappyHippyHippo\WSV;
 
-use Closure;
 use Generator;
-use HappyHippyHippo\TextIO\Encode;
-use HappyHippyHippo\TextIO\Exception\Exception;
-use HappyHippyHippo\TextIO\InputStream;
+use HappyHippyHippo\TextIO\Exception\FileNotFoundException;
+use HappyHippyHippo\TextIO\Exception\FileNotReadableException;
+use HappyHippyHippo\TextIO\Exception\FileOpenException;
+use HappyHippyHippo\TextIO\Exception\FileReadException;
 
-class Decoder
+class Decoder implements DecoderInterface
 {
-    /** @var null|bool|string[] */
-    protected null|bool|array $header = null;
-
-    /** @var array<string, Closure> */
-    protected array $transformers = [];
+    /** @var MetadataInterface */
+    protected MetadataInterface $metadata;
 
     /**
      * @param string $file
-     * @param Encode $encode
+     * @return DecoderInterface
      */
-    public function __construct(protected string $file, protected Encode $encode = Encode::UTF8)
+    public static function make(string $file): DecoderInterface
     {
+        return new self($file);
     }
 
     /**
      * @param string $file
-     * @param Encode $encode
-     * @return Decoder
      */
-    public static function make(string $file, Encode $encode = Encode::UTF8): Decoder
+    public function __construct(protected string $file)
     {
-        return new self($file, $encode);
+        $this->metadata = new Metadata();
     }
 
     /**
-     * @param null|bool|string[] $header
-     * @return $this
+     * @return MetadataInterface
      */
-    public function header(null|bool|array $header): Decoder
+    public function metadata(): MetadataInterface
     {
-        $this->header = $header;
-        return $this;
+        return $this->metadata;
     }
 
     /**
-     * @param string $key
-     * @param Closure $transformer
-     * @return $this
+     * @return Generator
+     * @throws Exception\EndOfLineException
+     * @throws FileNotFoundException
+     * @throws FileNotReadableException
+     * @throws FileOpenException
+     * @throws FileReadException
      */
-    public function transformer(string $key, Closure $transformer): Decoder
+    public function read(): Generator
     {
-        $this->transformers[$key] = $transformer;
-        return $this;
-    }
-
-    /**
-     * @throws Exception
-     */
-    public function records(): Generator
-    {
-        $input = new InputStream($this->file);
-        $parser = new Parser();
-        foreach ($input->lines($this->encode) as $id => $line) {
-            $values = $parser->parse($line, $this->encode);
-            if (count($values) === 0) {
-                continue;
-            }
-            if ($this->header === true) {
-                $this->header = $values;
-                continue;
-            }
-            yield $this->applyTransformers($this->applyKeys($values));
+        $stream = new InputStream($this->file, $this->metadata);
+        foreach ($stream->read() as $record) {
+            yield $record;
         }
-    }
-
-    /**
-     * @param array<int|string, mixed> $values
-     * @return array<int|string, mixed>
-     */
-    protected function applyKeys(array $values): array
-    {
-        if (is_array($this->header)) {
-            $values = array_combine($this->header, $values);
-        }
-        return $values;
-    }
-
-    /**
-     * @param array<int|string, mixed> $values
-     * @return array<int|string, mixed>
-     */
-    protected function applyTransformers(array $values): array
-    {
-        foreach ($this->transformers as $key => $transformer) {
-            if (array_key_exists($key, $values)) {
-                $values[$key] = $transformer($values[$key]);
-            }
-        }
-        return $values;
+        $stream = null;
     }
 }

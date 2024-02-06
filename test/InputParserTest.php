@@ -2,20 +2,20 @@
 
 namespace HappyHippyHippo\WSV\tests;
 
-use HappyHippyHippo\WSV\Exception;
-use HappyHippyHippo\WSV\Parser;
+use HappyHippyHippo\WSV\Exception\EndOfLineException;
+use HappyHippyHippo\WSV\InputParser;
 use PHPUnit\Framework\TestCase;
 
 /**
- * @coversDefaultClass \HappyHippyHippo\WSV\Parser
+ * @coversDefaultClass \HappyHippyHippo\WSV\InputParser
  */
-class ParserTest extends TestCase
+class InputParserTest extends TestCase
 {
     /**
      * @param string $text
      * @param string[] $expected
      * @return void
-     * @throws Exception\Exception
+     * @throws EndOfLineException
      *
      * @covers ::parse
      * @covers ::removeWhitespaces
@@ -33,7 +33,7 @@ class ParserTest extends TestCase
      */
     public function testParse(string $text, array $expected): void
     {
-        $this->assertEquals($expected, (new Parser())->parse($text));
+        $this->assertEquals($expected, (new InputParser())->parse($text));
     }
 
     /**
@@ -123,7 +123,7 @@ class ParserTest extends TestCase
 
     /**
      * @return void
-     * @throws Exception\Exception
+     * @throws EndOfLineException
      *
      * @covers ::parse
      * @covers ::read
@@ -131,9 +131,9 @@ class ParserTest extends TestCase
      */
     public function testParseUnterminatedString(): void
     {
-        $this->expectException(Exception\EndOfLineException::class);
+        $this->expectException(EndOfLineException::class);
         $this->expectExceptionMessage('Unexpected end of line');
 
-        (new Parser())->parse('asd "asd 123');
+        (new InputParser())->parse('asd "asd 123');
     }
 }
